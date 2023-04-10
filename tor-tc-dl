@@ -1,0 +1,113 @@
+from keras.models import Sequential
+from keras import layers
+from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import pandas as pd
+import numpy as np
+
+# Function to process the input data
+def process_input_data(df):
+    enc_dict = {'0':0, '1':1, '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9, 'a':10, 'b':11, 'c':12, 'd':13, 'e':14, 'f':15}
+    cls = {'nontor':0, 'tor':1} 
+    ls = np.asarray(df.iloc[:,0])
+    cs = np.asarray(df.iloc[:,1])
+    labels = []
+    contents = []
+    max_len = 0
+    for i in range(len(ls)):
+        labels.append(cls[ls[i]])
+        c = cs[i]
+        if len(c) > max_len:
+            max_len = len(c)
+        content = [enc_dict[char] for char in c]
+        contents.append(content)
+    return labels, contents, max_len
+
+# Function to get train and test data
+def get_train_test(labels, contents, num_train, max_len):
+    padded_contents = pad_sequences(contents, maxlen=max_len, padding='post')
+    x_train = padded_contents[:num_train]
+    y_train = labels[:num_train]
+    x_test = padded_contents[num_train:]
+    y_test = labels[num_train:]
+    return np.asarray(x_train), np.asarray(y_train), np.asarray(x_test), np.asarray(y_test)
+
+df = pd.read_csv('/content/gdrive/My Drive/Colab/dl/dl_Tor-nonTor.csv', header=None)
+sam_df = df.sample(frac=1).reset_index(drop=True)
+labels, contents, max_len = process_input_data(sam_df)
+x_train, y_train, x_test, y_test = get_train_test(labels, contents, 150, max_len)
+
+# First model (dense layers)
+epochs_1 = 10
+model1 = Sequential()
+model1.add(layers.Dense(16, activation='relu', input_shape=(max_len,)))
+model1.add(layers.Dense(16, activation='relu'))
+model1.add(layers.Dense(1, activation='sigmoid'))
+model1.summary()
+model1.compile(optimizer=RMSprop(learning_rate=1e-4), loss='binary_crossentropy', metrics=['acc'])
+h1 = model1.fit(x_train, y_train, epochs=epochs_1, validation_data=(x_test, y_test))
+
+# Plot the results of the first model
+h1_dict = h1.history
+loss_values = h1_dict['loss']
+val_loss_values = h1_dict['val_loss']
+acc_values = h1_dict['acc'] 
+val_acc_values = h1_dict['val_acc']
+
+plt.subplot(1, 2, 1)
+plt.plot(range(1, epochs_1+1), loss_values, 'bo', label='Training loss')
+plt.plot(range(1, epochs_1+1), val_loss_values, 'b', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(range(1, epochs_1+1), acc_values, 'bo', label='Training acc')
+plt.plot(range(1, epochs_1+1), val_acc_values, 'b', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Acc')
+plt.legend()
+plt.show()
+
+# Second model (Conv1D layers)
+epochs_2 = 10
+model2 = Sequential()
+model2.add(layers.Conv1D(filters=32, kernel_size=5, activation='relu', input_shape = (max_len, 1)))
+model2.add(layers.Conv1D(filters=32, kernel_size=5, activation='relu'))
+model2.add(layers.MaxPool1D(5))
+model2.add(layers.Conv1D(filters=32, kernel_size=5, activation='relu'))
+model2.add(layers.GlobalMaxPool1D())
+model2.add(layers.Dense(1, activation='sigmoid'))
+
+model2.compile(optimizer=RMSprop(lr=1e-4), loss='binary_crossentropy', metrics=['acc'])
+new_x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
+new_x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], 1)
+h2 = model2.fit(new_x_train, y_train, epochs=epochs_2, validation_data=(new_x_test, y_test))
+
+# Plot the results of the second model
+h2_dict = h2.history
+loss_values = h2_dict['loss']
+val_loss_values = h2_dict['val_loss']
+acc_values = h2_dict['acc'] 
+val_acc_values = h2_dict['val_acc']
+
+plt.subplot(1, 2, 1)
+plt.plot(range(1, epochs_2 + 1), loss_values, 'bo', label='Training loss')
+plt.plot(range(1, epochs_2 + 1), val_loss_values, 'b', label='Validation loss')
+plt.title('Training and validation loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+
+plt.subplot(1, 2, 2)
+plt.plot(range(1, epochs_2 + 1), acc_values, 'bo', label='Training acc')
+plt.plot(range(1, epochs_2 + 1), val_acc_values, 'b', label='Validation acc')
+plt.title('Training and validation accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Acc')
+plt.legend()
+plt.show()
